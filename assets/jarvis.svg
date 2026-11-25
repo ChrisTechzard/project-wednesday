@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="60%">
+      <stop offset="0%" stop-color="#10263a"/>
+      <stop offset="100%" stop-color="#05090f"/>
+    </radialGradient>
+  </defs>
+  <rect width="128" height="128" rx="26" fill="url(#bg)"/>
+  <circle cx="64" cy="64" r="40" fill="none" stroke="#00d4ff" stroke-width="3" opacity="0.85"/>
+  <circle cx="64" cy="64" r="30" fill="none" stroke="#00d4ff" stroke-width="1.5" opacity="0.4" stroke-dasharray="4 7"/>
+  <path d="M64 30 L92 79 H36 Z" fill="none" stroke="#00d4ff" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="64" cy="64" r="6" fill="#00d4ff"/>
+  <text x="64" y="115" font-family="sans-serif" font-size="12" fill="#8fa3bf" text-anchor="middle">J.A.R.V.I.S.</text>
+</svg>

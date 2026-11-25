@@ -1,0 +1,19 @@
+# Optional extra: local OCR for the "describe screen" command.
+#
+# Core JARVIS works without this file. ScreenAnalyzer degrades gracefully:
+# screenshots and AI image descriptions still work, but on-screen text is not
+# extracted. Install only if you want offline OCR of captured screenshots.
+#
+# Install with:
+#   .venv/bin/python -m pip install -r requirements-optional.txt
+#
+# Pins: mediapipe requires numpy<2, so numpy is pinned to 1.26.4 (also pinned in
+# requirements.txt). OpenCV versions are pinned in requirements.txt too; do not
+# upgrade them to 5.x here.
+
+numpy==1.26.4
+opencv-python==4.10.0.84
+opencv-contrib-python==4.11.0.86
+rapidocr-onnxruntime>=1.3,<2
+pyclipper>=1.3,<2
+shapely>=2.0,<3

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments and local secrets
+.venv/
+venv/
+.env
+.env.*
+
+# Runtime data. Keep real logs, captures and model weights off the repo.
+logs/
+screenshots/
+models/
+doctor.json
+*.sqlite3
+*.db
+
+# Local machine-specific notes
+docs/FINAL_REPORT.md
+
+# Editor / OS noise
+.DS_Store
+*.swp
+.idea/
+.vscode/
