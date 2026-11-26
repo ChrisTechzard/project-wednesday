@@ -6,6 +6,18 @@ from datetime import datetime
 
 from ui.formatting import USER_SPEAKER, format_transcript_line, welcome_line
 from ui.validation import validate_settings_values
+from ui.widgets import raise_panel
+
+
+class FakePanel:
+    def __init__(self) -> None:
+        self.raised_by = ""
+
+    def lift(self) -> None:
+        self.raised_by = "lift"
+
+    def tkraise(self) -> None:
+        self.raised_by = "tkraise"
 
 
 def test_validation_accepts_a_known_good_form() -> None:
@@ -48,3 +60,9 @@ def test_transcript_line_uses_time_and_speaker_tag() -> None:
 def test_welcome_line_is_styled_as_system_text() -> None:
     line = welcome_line(datetime(2026, 11, 26, 9, 30))
     assert line.startswith("[09:30] Wednesday:")
+
+
+def test_raise_panel_uses_lift_so_scrollable_settings_stays_visible() -> None:
+    panel = FakePanel()
+    raise_panel(panel)
+    assert panel.raised_by == "lift"

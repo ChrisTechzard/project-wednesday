@@ -27,6 +27,7 @@ from ui.widgets import (
     bind_focus_ring,
     center_window,
     label,
+    raise_panel,
     secondary_button,
 )
 
@@ -256,7 +257,7 @@ class MainWindow(ctk.CTk):
         if key not in self._frames:
             return
         self._current = key
-        self._frames[key].tkraise()
+        raise_panel(self._frames[key])
         titles = {"dashboard": "Dashboard", "conversation": "Conversation", "vision": "Vision & Tracking", "settings": "Settings"}
         self._header_title.configure(text=titles.get(key, key.title()))
         for name, button in self._nav_buttons.items():

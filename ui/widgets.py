@@ -90,6 +90,15 @@ def bind_focus_ring(widget: ctk.CTkBaseClass) -> None:
     target.bind("<FocusOut>", focus_out, add="+")
 
 
+def raise_panel(widget: tkinter.Misc) -> None:
+    """Raise a stacked panel, including CTkScrollableFrame's outer frame.
+
+    tkraise() is an alias in Tkinter that CTkScrollableFrame does not override,
+    so it raises the inner canvas frame instead of the frame that is gridded.
+    """
+    widget.lift()
+
+
 def center_window(window: ctk.CTkBaseClass, parent: ctk.CTkBaseClass) -> None:
     """Centre a dialog over its parent without relying on the WM."""
     window.update_idletasks()
