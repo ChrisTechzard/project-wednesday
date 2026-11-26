@@ -22,25 +22,41 @@ All commands below assume you are in the project root.
 
 Nothing starts at login unless you explicitly enable `jarvis.service`. Headless mode can still be started with `systemctl --user start jarvis.service`.
 
-In the GUI, type into the Conversation panel and press Enter, or click **MIC** to record. Wake-word listening starts with the app; say **"Jarvis, ..."**.
+In the GUI, type into the Conversation panel and press Enter, or click **MIC** to record. Wake-word listening starts with the app; say **"Jarvis, ..."**. Press **F1** any time to see the keyboard shortcuts, or click **Shortcuts** in the top bar.
 
 ### Conversation buttons
 
 | Button | What it does |
 |---|---|
 | **SEND** | Sends typed text; disabled while a reply is being generated so clicks cannot stack up. |
-| **MIC** | Records from the already-open mic stream. Becomes **REC ●** while active; click again to finish early. |
+| **MIC** | Records from the already-open mic stream. Becomes **RECORDING** while active; click again to finish early. Disabled while a reply is being generated. |
 | **STOP** | Cancels recording, discards a pending reply and stops speech playback. |
+| **COPY** | Copies the visible transcript to the clipboard. This does not change stored chat history. |
+| **CLEAR** | Empties the visible transcript and starts with a fresh greeting. Stored memory is untouched. |
+
+Transcript lines are timestamped and coloured by speaker. Keyboard focus is shown with a white border on buttons, entries, sliders and check boxes.
 
 Recording reuses the live microphone stream rather than opening a second audio device, which avoids deadlocking PipeWire. Commands are capped at `voice.phrase_time_limit` seconds (default 12) unless you stop sooner.
 
 ## GUI panels
 
-- **Dashboard** — status, quick actions, action log.
-- **Conversation** — chat history, text input, MIC/STOP controls, TTS on/off.
-- **Vision & Tracking** — camera on/off, head/gaze/off modes, 9-point calibration, sensitivity/smoothing/dwell sliders, experimental blink toggle.
-- **Settings** — AI model/host, voice devices, vision defaults, automation safety, memory toggles, theme, save/reset/clear memory.
+- **Dashboard** — status cards, a manual **Refresh** button, quick actions and the action log. **Stop current action** cancels the active request; it does not quit the app.
+- **Conversation** — timestamped transcript, text input, MIC/STOP controls, COPY/CLEAR and a live mic meter.
+- **Vision & Tracking** — camera on/off, head/gaze/off modes, 9-point calibration with an on-screen target and progress, sensitivity/smoothing/dwell sliders, experimental blink toggle.
+- **Settings** — AI model/host, voice devices, vision defaults, automation safety, memory toggles, theme, save/reset/clear memory. Bad values are marked next to the field before anything is saved.
 - **EMERGENCY STOP** — blocks all automation immediately and quits the app.
+
+### Keyboard shortcuts
+
+| Keys | Action |
+|---|---|
+| **Ctrl + 1 / 2 / 3 / 4** | Dashboard / Conversation / Vision & Tracking / Settings |
+| **Ctrl + Enter** | Send the typed message |
+| **Alt + M** | Start or stop microphone recording |
+| **Ctrl + S** | Save settings |
+| **Ctrl + Shift + J** | Emergency stop and quit |
+| **F1** | Show the shortcut list |
+| **Esc** | Deny a confirmation dialog or close the shortcut list |
 
 ## Commands
 
@@ -107,9 +123,10 @@ Settings worth knowing: wake threshold (default `0.5`), microphone device, STT m
 
 1. Open **Vision & Tracking**, click **Camera ON**, and make sure your face is visible.
 2. Choose **gaze** or **head** mode. Portal consent is needed for cursor control.
-3. Click **Start calibration**. For each of the 9 targets, look at it and click **Capture point**.
-4. When the last point is captured the fit is saved locally and shows as **Calibrated**.
-5. Set dwell time (default 900 ms); the cursor rests on a target to click. Leave blink click off unless you have verified it.
+3. Click **Start calibration**. A circle appears on the preview and the status shows which of the 9 targets to look at. Click **Capture point** for each one.
+4. The progress bar fills as points are captured. If no face is detected, the status says so and the point is not recorded. **Cancel** stops the attempt and keeps the previous fit.
+5. When the last point is captured the fit is saved locally and shows as **Calibrated**.
+6. Set dwell time (default 900 ms); the cursor rests on a target to click. Leave blink click off unless you have verified it.
 
 A normal webcam is not an eye tracker. Expect large-target selection, not pixel-perfect pointing.
 
@@ -122,4 +139,4 @@ A normal webcam is not an eye tracker. Expect large-target selection, not pixel-
 - Cloud AI is off by default; no microphone, camera or screen data is uploaded.
 - Every tool execution is appended to `logs/actions.jsonl`.
 
-Manual stops: GUI **EMERGENCY STOP**, `./scripts/off.sh`, `systemctl --user stop jarvis.service`, or closing the window.
+Manual stops: GUI **EMERGENCY STOP** (or **Ctrl + Shift + J**), `./scripts/off.sh`, `systemctl --user stop jarvis.service`, or closing the window.

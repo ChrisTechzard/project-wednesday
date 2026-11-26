@@ -86,7 +86,16 @@ class GazeCalibrator:
         y = float(np.dot(features, cy))
         return float(np.clip(x, 0, 1)), float(np.clip(y, 0, 1))
 
+    def begin(self) -> None:
+        """Start collecting a new sample set without losing the saved fit."""
+        self._samples.clear()
+
+    def cancel(self) -> None:
+        """Abandon the current samples but keep the last successful fit."""
+        self._samples.clear()
+
     def reset(self) -> None:
+        """Remove both the samples and any saved calibration."""
         self._samples.clear()
         self._coefficients.clear()
         self._path.unlink(missing_ok=True)

@@ -1,9 +1,9 @@
-"""Main JARVIS application window with navigation and event routing."""
+"""Main Wednesday application window with navigation and event routing."""
 
 from __future__ import annotations
 
 import threading
-from typing import Any
+from collections.abc import Callable
 
 import customtkinter as ctk
 
@@ -15,14 +15,48 @@ from ui.conversation import ConversationFrame
 from ui.dashboard import DashboardFrame
 from ui.settings_panel import SettingsFrame
 from ui.vision_panel import VisionFrame
-from ui.widgets import ACCENT, BG, DANGER, MUTED, PANEL, TEXT, label
+from ui.widgets import (
+    ACCENT,
+    BG,
+    DANGER,
+    MUTED,
+    PANEL,
+    SUCCESS,
+    TEXT,
+    action_button,
+    bind_focus_ring,
+    center_window,
+    label,
+    secondary_button,
+)
 
 NAV_ITEMS = [
-    ("dashboard", "⌂  Dashboard"),
-    ("conversation", "✦  Conversation"),
-    ("vision", "◉  Vision & Tracking"),
-    ("settings", "⚙  Settings"),
+    ("dashboard", "Dashboard"),
+    ("conversation", "Conversation"),
+    ("vision", "Vision & Tracking"),
+    ("settings", "Settings"),
 ]
+
+SHORTCUTS = [
+    ("Ctrl + 1", "Open Dashboard"),
+    ("Ctrl + 2", "Open Conversation"),
+    ("Ctrl + 3", "Open Vision & Tracking"),
+    ("Ctrl + 4", "Open Settings"),
+    ("Ctrl + Enter", "Send the typed message"),
+    ("Alt + M", "Start or stop microphone recording"),
+    ("Ctrl + S", "Save settings"),
+    ("Ctrl + Shift + J", "Emergency stop and quit"),
+    ("F1", "Show this shortcut list"),
+    ("Esc", "Deny a confirmation dialog or close this list"),
+]
+
+
+def _shortcut(callback: Callable[[], object]) -> Callable[[object], str]:
+    """Build a Tk handler that also stops the key event from bubbling."""
+    def handler(_event: object) -> str:
+        callback()
+        return "break"
+    return handler
 
 
 class ConfirmationDialog(ctk.CTkToplevel):
@@ -32,11 +66,12 @@ class ConfirmationDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.result = False
         self.title("Wednesday — Confirm Action")
-        self.geometry("440x220")
+        self.geometry("440x230")
         self.resizable(False, False)
         self.configure(fg_color=BG)
         self.transient(parent)
         self.attributes("-topmost", True)
+        center_window(self, parent)
 
         label(self, title, 18, weight="bold").pack(anchor="w", padx=24, pady=(24, 8))
         detail = label(self, details, 13, text_color=MUTED, wraplength=390, justify="left")
@@ -45,9 +80,18 @@ class ConfirmationDialog(ctk.CTkToplevel):
 
         buttons = ctk.CTkFrame(self, fg_color="transparent")
         buttons.pack(fill="x", padx=24, pady=22)
-        ctk.CTkButton(buttons, text="DENY", width=120, height=38, fg_color=DANGER, hover_color="#C42E3E", command=self._deny).pack(side="left")
-        ctk.CTkButton(buttons, text="ALLOW", width=120, height=38, fg_color="#0089A8", hover_color=ACCENT, command=self._allow).pack(side="right")
+        deny = secondary_button(buttons, "DENY", self._deny, width=120)
+        deny.pack(side="left")
+        action_button(buttons, "ALLOW", self._allow, width=120).pack(side="right")
+
+        self.bind("<Escape>", lambda _event: self._deny())
         self.protocol("WM_DELETE_WINDOW", self._deny)
+        self.after(50, deny.focus_set)
+        self.after(50, self._grab_focus)
+
+    def _grab_focus(self) -> None:
+        if self.winfo_exists():
+            self.grab_set()
 
     def _allow(self) -> None:
         self.result = True
@@ -58,10 +102,44 @@ class ConfirmationDialog(ctk.CTkToplevel):
         self.destroy()
 
 
+class ShortcutsDialog(ctk.CTkToplevel):
+    """Small modal reference for keyboard controls."""
+
+    def __init__(self, parent: ctk.CTkBaseClass) -> None:
+        super().__init__(parent)
+        self.title("Wednesday — Keyboard shortcuts")
+        self.geometry("560x480")
+        self.resizable(False, False)
+        self.configure(fg_color=BG)
+        self.transient(parent)
+        self.attributes("-topmost", True)
+        center_window(self, parent)
+
+        label(self, "Keyboard shortcuts", 18, weight="bold").pack(anchor="w", padx=24, pady=(24, 6))
+        label(self, "Everything in the GUI can also be reached from the keyboard.", 12, text_color=MUTED).pack(anchor="w", padx=24)
+
+        table = ctk.CTkFrame(self, fg_color="transparent")
+        table.pack(fill="both", expand=True, padx=24, pady=18)
+        table.columnconfigure(1, weight=1)
+        for row, (keys, description) in enumerate(SHORTCUTS):
+            label(table, keys, 12, text_color=ACCENT, weight="bold").grid(row=row, column=0, sticky="w", pady=4, padx=(0, 18))
+            label(table, description, 12, text_color=TEXT).grid(row=row, column=1, sticky="w", pady=4)
+
+        close = action_button(self, "CLOSE", self.destroy, width=110)
+        close.pack(pady=(0, 20))
+        self.bind("<Escape>", lambda _event: self.destroy())
+        self.after(50, close.focus_set)
+        self.after(50, self._grab_focus)
+
+    def _grab_focus(self) -> None:
+        if self.winfo_exists():
+            self.grab_set()
+
+
 class MainWindow(ctk.CTk):
     """Primary application window."""
 
-    def __init__(self, jarvis: Any) -> None:
+    def __init__(self, jarvis: object) -> None:
         super().__init__()
         self.jarvis = jarvis
         self._bus: EventBus = jarvis.bus
@@ -81,6 +159,7 @@ class MainWindow(ctk.CTk):
         self.configure(fg_color=BG)
 
         self._build()
+        self._bind_shortcuts()
         self._bus.subscribe(self._on_event)
         self.jarvis.set_confirmation_handler(self._confirm)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -103,31 +182,36 @@ class MainWindow(ctk.CTk):
                 sidebar,
                 text=text,
                 anchor="w",
-                height=42,
+                height=44,
                 fg_color="transparent",
                 text_color=MUTED,
                 hover_color="#162437",
+                font=ctk.CTkFont(size=13),
                 command=lambda k=key: self.show(k),
             )
             button.pack(fill="x", padx=12, pady=3)
+            bind_focus_ring(button)
             self._nav_buttons[key] = button
 
-        self._side_status = label(sidebar, "● Initialising", 11, text_color=MUTED, wraplength=180)
+        self._side_status = label(sidebar, "Initialising", 11, text_color=MUTED, wraplength=180)
         self._side_status.pack(anchor="w", padx=20, pady=(24, 6))
-        ctk.CTkButton(
+        emergency = ctk.CTkButton(
             sidebar,
-            text="■  EMERGENCY STOP",
+            text="EMERGENCY STOP",
             height=40,
             fg_color=DANGER,
             hover_color="#C42E3E",
+            font=ctk.CTkFont(size=13, weight="bold"),
             command=self._emergency_stop,
-        ).pack(fill="x", padx=12, pady=(6, 20))
-        self._nav_buttons["dashboard"].configure(fg_color="#162437", text_color=TEXT)
+        )
+        emergency.pack(fill="x", padx=12, pady=(6, 20))
+        bind_focus_ring(emergency)
 
         header = ctk.CTkFrame(self, fg_color=BG, height=56)
         header.grid(row=0, column=1, sticky="ew", padx=18, pady=(14, 0))
         self._header_title = label(header, "Dashboard", 18, weight="bold")
         self._header_title.pack(side="left")
+        secondary_button(header, "Shortcuts", self._show_shortcuts, width=92, height=32).pack(side="left", padx=16)
         self._header_status = label(header, "AI offline", 12, text_color=MUTED)
         self._header_status.pack(side="right", padx=12)
 
@@ -142,6 +226,30 @@ class MainWindow(ctk.CTk):
         self._frames["settings"] = SettingsFrame(container, self.jarvis, self._bus)
         for frame in self._frames.values():
             frame.grid(row=0, column=0, sticky="nsew")
+        self.show("dashboard")
+
+    def _bind_shortcuts(self) -> None:
+        self.bind("<Control-1>", _shortcut(lambda: self.show("dashboard")))
+        self.bind("<Control-2>", _shortcut(lambda: self.show("conversation")))
+        self.bind("<Control-3>", _shortcut(lambda: self.show("vision")))
+        self.bind("<Control-4>", _shortcut(lambda: self.show("settings")))
+        self.bind(
+            "<Control-Return>",
+            _shortcut(lambda: (self.show("conversation"), self._frames["conversation"].send())),
+        )
+        self.bind(
+            "<Alt-m>",
+            _shortcut(lambda: (self.show("conversation"), self._frames["conversation"].toggle_listen())),
+        )
+        self.bind(
+            "<Control-s>",
+            _shortcut(lambda: (self.show("settings"), self._frames["settings"].save())),
+        )
+        self.bind("<Control-Shift-KeyPress-J>", _shortcut(self._emergency_stop))
+        self.bind("<F1>", _shortcut(self._show_shortcuts))
+
+    def _show_shortcuts(self) -> None:
+        ShortcutsDialog(self)
 
     def show(self, key: str) -> None:
         """Switch the visible panel."""
@@ -153,7 +261,11 @@ class MainWindow(ctk.CTk):
         self._header_title.configure(text=titles.get(key, key.title()))
         for name, button in self._nav_buttons.items():
             active = name == key
-            button.configure(fg_color="#162437" if active else "transparent", text_color=TEXT if active else MUTED)
+            button.configure(
+                fg_color="#162437" if active else "transparent",
+                text_color=TEXT if active else MUTED,
+                font=ctk.CTkFont(size=13, weight="bold" if active else "normal", underline=active),
+            )
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -170,7 +282,7 @@ class MainWindow(ctk.CTk):
     def _emergency_stop(self) -> None:
         """Halt all actions and fully quit — this is the 'turn off' button."""
         self.jarvis.emergency_stop()
-        self._side_status.configure(text="● EMERGENCY STOP", text_color=DANGER)
+        self._side_status.configure(text="EMERGENCY STOP", text_color=DANGER)
         self._header_status.configure(text="STOPPED", text_color=DANGER)
         self.after(100, self._on_close)
 
@@ -209,13 +321,15 @@ class MainWindow(ctk.CTk):
             message = str(event.payload.get("message", "Unknown error"))
             dashboard.append_log(f"ERROR: {message}")
         elif event.type == EventType.STATUS:
-            self._side_status.configure(text="● Online" if not self.jarvis.safety.stopped else "● STOPPED", text_color="#3DDC84" if not self.jarvis.safety.stopped else DANGER)
+            stopped = bool(self.jarvis.safety.stopped)
+            self._side_status.configure(text="STOPPED" if stopped else "Online", text_color=DANGER if stopped else SUCCESS)
             if "settings_saved" in event.payload:
                 dashboard.append_log("Settings saved")
             if "message" in event.payload:
                 dashboard.append_log(str(event.payload["message"]))
         elif event.type == EventType.SPEAKING:
-            self._header_status.configure(text="Speaking…" if event.payload.get("active") else "Listening", text_color=ACCENT if event.payload.get("active") else MUTED)
+            active = bool(event.payload.get("active"))
+            self._header_status.configure(text="Speaking" if active else "Listening", text_color=ACCENT if active else MUTED)
         elif event.type == EventType.WAKE_WORD:
             dashboard.append_log("Wake word detected")
 
@@ -228,10 +342,11 @@ class MainWindow(ctk.CTk):
         try:
             report = self.jarvis.doctor(probe_cameras=False)
             self._frames["dashboard"].update_status(report)
-            self._header_status.configure(text=f"AI {'online' if report['ollama_running'] else 'offline'}", text_color="#3DDC84" if report["ollama_running"] else MUTED)
+            online = bool(report["ollama_running"])
+            self._header_status.configure(text=f"AI {'online' if online else 'offline'}", text_color=SUCCESS if online else MUTED)
         except Exception as exc:
             self._log.debug("Status refresh failed: %s", exc)
-        # doctor() probes cameras and Ollama; 30 s avoids periodic CPU spikes.
+        # doctor() probes Ollama; 30 s avoids periodic CPU spikes.
         self.after(30000, self._refresh_status)
 
     def run(self) -> None:

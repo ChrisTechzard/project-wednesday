@@ -30,6 +30,25 @@ def test_calibration_requires_four_samples(tmp_path) -> None:
     assert calibrator.calibrated is False
 
 
+def test_cancelling_calibration_keeps_the_last_fit(tmp_path) -> None:
+    calibrator = GazeCalibrator(tmp_path / "calibration.json")
+    for ix, iy, sx, sy in [
+        (0.1, 0.1, 0.1, 0.1), (0.9, 0.1, 0.9, 0.1),
+        (0.1, 0.9, 0.1, 0.9), (0.9, 0.9, 0.9, 0.9),
+    ]:
+        calibrator.add_sample(ix, iy, sx, sy)
+    assert calibrator.compute() is True
+
+    calibrator.begin()
+    calibrator.add_sample(0.5, 0.5, 0.5, 0.5)
+    assert calibrator.sample_count == 1
+    assert calibrator.calibrated is True
+
+    calibrator.cancel()
+    assert calibrator.sample_count == 0
+    assert calibrator.calibrated is True
+
+
 def test_dwell_requires_stable_target() -> None:
     controller = DwellController(dwell_seconds=0.3, radius_px=10)
     first = controller.update(100, 100, True)

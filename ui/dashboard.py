@@ -3,13 +3,27 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 
 import customtkinter as ctk
 
 from core.events import EventBus
 from core.models import Event, EventType
 
-from ui.widgets import ACCENT, BG, MUTED, TEXT, action_button, label, panel, status_pill
+from ui.widgets import (
+    ACCENT,
+    BG,
+    DANGER,
+    MUTED,
+    SUCCESS,
+    WARNING,
+    action_button,
+    bind_focus_ring,
+    label,
+    panel,
+    secondary_button,
+    status_pill,
+)
 
 
 class DashboardFrame(ctk.CTkFrame):
@@ -25,11 +39,15 @@ class DashboardFrame(ctk.CTkFrame):
         self._action_buttons: list[ctk.CTkButton] = []
         self._action_status: ctk.CTkLabel | None = None
         self._busy = False
+        self._refreshing = False
         self._build()
 
     def _build(self) -> None:
-        label(self, "SYSTEM OVERVIEW", 26, weight="bold").pack(anchor="w", padx=24, pady=(22, 4))
-        label(self, "Live status of every Wednesday subsystem", 13, text_color=MUTED).pack(anchor="w", padx=24)
+        heading = ctk.CTkFrame(self, fg_color="transparent")
+        heading.pack(fill="x", padx=24, pady=(22, 0))
+        label(heading, "SYSTEM OVERVIEW", 26, weight="bold").pack(side="left")
+        secondary_button(heading, "Refresh", self._refresh, width=90, height=32).pack(side="right")
+        label(self, "Live status of every Wednesday subsystem", 13, text_color=MUTED).pack(anchor="w", padx=24, pady=(4, 0))
 
         grid = ctk.CTkFrame(self, fg_color="transparent")
         grid.pack(fill="x", padx=24, pady=18)
@@ -58,10 +76,11 @@ class DashboardFrame(ctk.CTkFrame):
             ("Speak a command", self._jarvis.voice_command, "Voice command finished"),
             ("System status", lambda: self._jarvis.process_text("system status", speak=False), "Status checked"),
             ("Take screenshot", lambda: self._jarvis.process_text("take a screenshot", speak=False), "Screenshot captured"),
-            ("Emergency stop", self._jarvis.stop_all, "All actions halted"),
+            ("Stop current action", self._jarvis.stop_all, "Current action stopped"),
         ]
         for index, (text, command, done_message) in enumerate(actions):
-            button = action_button(buttons, text, lambda c=command, m=done_message: self._run_action(m, c))
+            button_factory = secondary_button if text == "Stop current action" else action_button
+            button = button_factory(buttons, text, lambda c=command, m=done_message: self._run_action(m, c))
             button.grid(row=0, column=index, padx=6, sticky="ew")
             buttons.columnconfigure(index, weight=1)
             self._action_buttons.append(button)
@@ -81,37 +100,39 @@ class DashboardFrame(ctk.CTkFrame):
         self._log = ctk.CTkTextbox(log_card, height=180, fg_color="#080D15", font=ctk.CTkFont(size=12))
         self._log.pack(fill="both", expand=True, padx=14, pady=(0, 14))
         self._log.configure(state="disabled")
+        bind_focus_ring(self._log)
 
-    def _set_action_status(self, text: str, color: str = "#8FA3BF") -> None:
+    def _set_action_status(self, text: str, color: str = MUTED) -> None:
         if self._action_status is not None:
             self._action_status.configure(text=text, text_color=color)
 
-    def _run_action(self, done_message: str, command) -> None:
+    def _run_action(self, done_message: str, command: Callable[[], object]) -> None:
         """Run a quick action off the UI thread so the app never freezes."""
         if self._busy:
-            self._set_action_status("Already running — please wait", "#FFB020")
+            self._set_action_status("Already running — please wait", WARNING)
             return
         self._busy = True
         for button in self._action_buttons:
             button.configure(state="disabled")
-        self._set_action_status("Working…", "#00D4FF")
+        self._set_action_status("Working…", ACCENT)
 
         def worker() -> None:
-            result = None
+            result: object = None
             error: Exception | None = None
             try:
                 result = command()
             except Exception as exc:  # never let a quick action kill the UI
                 error = exc
+
             def done() -> None:
                 self._busy = False
                 for button in self._action_buttons:
                     button.configure(state="normal")
                 if error is not None:
-                    self._set_action_status(f"Failed: {error}", "#FF6B6B")
+                    self._set_action_status(f"Failed: {error}", DANGER)
                     self.append_log(f"Quick action failed: {error}")
                 else:
-                    self._set_action_status(done_message, "#3DDC84")
+                    self._set_action_status(done_message, SUCCESS)
                     if result:
                         self.append_log(f"{done_message}: {str(result)[:120]}")
                     else:
@@ -120,23 +141,52 @@ class DashboardFrame(ctk.CTkFrame):
 
         threading.Thread(target=worker, name="quick-action", daemon=True).start()
 
+    def _refresh(self) -> None:
+        """Manual status refresh; still non-blocking and safe to repeat."""
+        if self._refreshing:
+            self._set_action_status("Refresh already running", WARNING)
+            return
+        self._refreshing = True
+        self._set_action_status("Refreshing status…", ACCENT)
+
+        def worker() -> None:
+            report: dict[str, object] | None = None
+            error: Exception | None = None
+            try:
+                report = self._jarvis.doctor(probe_cameras=False)
+            except Exception as exc:
+                error = exc
+
+            def done() -> None:
+                self._refreshing = False
+                if error is not None:
+                    self._set_action_status(f"Refresh failed: {error}", DANGER)
+                    return
+                if report is not None:
+                    self.update_status(report)
+                self._set_action_status("Status refreshed", SUCCESS)
+                self.append_log("Status refreshed")
+            self.after(0, done)
+
+        threading.Thread(target=worker, name="status-refresh", daemon=True).start()
+
     def update_status(self, report: dict[str, object]) -> None:
         """Refresh status cards from a doctor report."""
         self._pills["ai"].configure(
-            text="● Online" if report.get("ollama_running") else "● Offline",
-            text_color="#3DDC84" if report.get("ollama_running") else "#8FA3BF",
+            text="Online" if report.get("ollama_running") else "Offline",
+            text_color=SUCCESS if report.get("ollama_running") else MUTED,
         )
         self._pills["voice"].configure(
-            text=f"● {len(report.get('microphones', []))} mic(s)",
-            text_color="#3DDC84" if report.get("microphones") else "#FFB020",
+            text=f"{len(report.get('microphones', []))} mic(s)",
+            text_color=SUCCESS if report.get("microphones") else WARNING,
         )
         camera_on = bool(report.get("vision_running"))
         self._pills["camera"].configure(
-            text="● On" if camera_on else "● Off",
-            text_color="#3DDC84" if camera_on else "#8FA3BF",
+            text="On" if camera_on else "Off",
+            text_color=SUCCESS if camera_on else MUTED,
         )
         mode = str(report.get("tracking_mode", "off"))
-        self._pills["tracking"].configure(text=f"● {mode.upper()}", text_color="#00D4FF" if mode != "off" else "#8FA3BF")
+        self._pills["tracking"].configure(text=mode.upper(), text_color=ACCENT if mode != "off" else MUTED)
         system = report.get("system", {})
         if self._metrics is not None and isinstance(system, dict):
             self._metrics.configure(

@@ -11,7 +11,7 @@ I built Wednesday because I wanted to talk to my laptop without sending every se
 - **Desktop control.** Launch apps, open a configured project folder, search the web, take a screenshot through the GNOME portal, and optionally move the pointer or send keys through the RemoteDesktop portal. Every action is recorded in `logs/actions.jsonl`.
 - **Webcam tracking.** Face, head and coarse gaze tracking with a 9-point calibration and dwell selection. Blink click exists but is off by default and I would not rely on it.
 - **Local memory.** SQLite-backed facts and recent conversation context, with a filter that refuses passwords, tokens and API keys.
-- **A GUI you can actually stop.** Dashboard, Conversation, Vision & Tracking and Settings panels, plus an EMERGENCY STOP button that blocks automation and quits the app.
+- **A GUI you can actually stop.** Dashboard, Conversation, Vision & Tracking and Settings panels, a readable transcript with copy/clear controls, on-screen calibration targets, inline settings errors, visible keyboard focus and shortcuts (press F1 for the list). EMERGENCY STOP still blocks automation and quits the app.
 
 It is a personal project, not a product. It assumes one user on one machine.
 

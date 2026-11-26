@@ -142,9 +142,22 @@ class VisionEngine:
         return self._camera.open(index, fps=cfg.target_fps)
 
     def start_calibration(self) -> None:
-        """Clear calibration samples (the UI then guides the user through targets)."""
-        self._calibrator.reset()
-        self._bus.emit(EventType.STATUS, {"calibration_samples": 0}, "vision")
+        """Start a new sample set; the UI guides the user through targets."""
+        self._calibrator.begin()
+        self._bus.emit(
+            EventType.STATUS,
+            {"calibration_samples": 0, "calibration_active": True},
+            "vision",
+        )
+
+    def cancel_calibration(self) -> None:
+        """Abandon this attempt without deleting the last successful fit."""
+        self._calibrator.cancel()
+        self._bus.emit(
+            EventType.STATUS,
+            {"calibration_samples": 0, "calibration_active": False},
+            "vision",
+        )
 
     def capture_calibration_point(self, screen_x: float, screen_y: float) -> bool:
         """Capture the current iris position for a known screen target."""
@@ -158,7 +171,11 @@ class VisionEngine:
     def finish_calibration(self) -> bool:
         """Fit the calibration model."""
         ok = self._calibrator.compute()
-        self._bus.emit(EventType.STATUS, {"calibrated": ok}, "vision")
+        self._bus.emit(
+            EventType.STATUS,
+            {"calibrated": ok, "calibration_active": False},
+            "vision",
+        )
         return ok
 
     def _loop(self) -> None:
